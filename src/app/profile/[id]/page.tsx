@@ -22,11 +22,13 @@ export default function ProfessionalProfile() {
   const { id } = useParams();
   const router = useRouter();
   const [professional, setProfessional] = useState<any>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProfessional = async () => {
-      const { data, error } = await supabase
+    const fetchData = async () => {
+      // Fetch professional details
+      const { data: prof, error: profError } = await supabase
         .from('professionals')
         .select(`
           *,
@@ -40,16 +42,28 @@ export default function ProfessionalProfile() {
         .eq('id', id)
         .single();
 
-      if (error || !data) {
+      if (profError || !prof) {
         router.push('/explore');
         return;
       }
 
-      setProfessional(data);
+      setProfessional(prof);
+
+      // Fetch reviews
+      const { data: reviewsData } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          users (name, avatar_url)
+        `)
+        .eq('professional_id', id)
+        .order('created_at', { ascending: false });
+      
+      setReviews(reviewsData || []);
       setLoading(false);
     };
 
-    fetchProfessional();
+    fetchData();
   }, [id, router]);
 
   if (loading) return (
@@ -111,8 +125,8 @@ export default function ProfessionalProfile() {
               </div>
               <div className="flex items-center gap-2">
                 <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                <span className="text-white">4.9</span>
-                <span className="text-slate-500">(24 reviews)</span>
+                <span className="text-white">{professional.rating || '4.9'}</span>
+                <span className="text-slate-500">({reviews.length} reviews)</span>
               </div>
               <div className="flex items-center gap-2 text-green-400">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -155,24 +169,61 @@ export default function ProfessionalProfile() {
             </div>
           </section>
 
-          <section className="bg-slate-800/30 border border-slate-700/50 rounded-3xl p-8">
-            <h2 className="text-2xl font-bold mb-4">Shadowing Experience</h2>
-            <p className="text-slate-400 mb-6">What to expect during a live session with {professional.users.name.split(' ')[0]}:</p>
-            <ul className="space-y-4">
-              {[
-                "Direct screen sharing of real production environments.",
-                "Real-time explanation of decision-making processes.",
-                "Hands-on demonstration of industry-standard tools.",
-                "Casual Q&A about team dynamics and career growth."
-              ].map((item, i) => (
-                <li key={i} className="flex gap-4 text-slate-300">
-                  <div className="mt-1.5 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+          {/* Reviews Section */}
+          <section className="bg-slate-800/40 border border-slate-700/50 rounded-3xl p-10">
+            <div className="flex items-center justify-between mb-10">
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <MessageSquare className="w-7 h-7 text-blue-400" />
+                What clients are saying
+              </h2>
+              <div className="flex items-center gap-2 bg-slate-900 px-4 py-1.5 rounded-full border border-slate-700">
+                <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                <span className="font-bold">{professional.rating || '4.9'}</span>
+                <span className="text-slate-500 text-sm">({reviews.length} reviews)</span>
+              </div>
+            </div>
+
+            {reviews.length === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-slate-500 italic">No reviews yet for this professional.</p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {reviews.map((review, i) => (
+                  <div key={i} className="pb-8 border-b border-slate-700 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden">
+                          {review.users?.avatar_url ? (
+                            <img src={review.users.avatar_url} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="font-bold text-xs">{review.users?.name.charAt(0)}</span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm tracking-tight">{review.users?.name}</div>
+                          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mt-0.5">Verified Shadow</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        {[...Array(5)].map((_, j) => (
+                          <Star 
+                            key={j} 
+                            className={`w-3 h-3 ${j < review.rating ? 'text-yellow-400 fill-current' : 'text-slate-700'}`} 
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      "{review.comment}"
+                    </p>
+                    <div className="mt-4 text-[10px] text-slate-600 font-medium">
+                      {new Date(review.created_at).toLocaleDateString()}
+                    </div>
                   </div>
-                  {item}
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+            )}
           </section>
         </div>
 
